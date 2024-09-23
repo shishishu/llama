@@ -155,6 +155,7 @@ def apply_rotary_emb(
     """
     xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
     xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
+    # gpt: 广播的目的是使频率张量在旋转嵌入时与查询和键张量的每个元素相乘。
     freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
     xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
     xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
@@ -162,6 +163,7 @@ def apply_rotary_emb(
 
 
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
+    # TODO: GQA, how to repeat?
     """torch.repeat_interleave(x, dim=2, repeats=n_rep)"""
     bs, slen, n_kv_heads, head_dim = x.shape
     if n_rep == 1:
@@ -201,9 +203,12 @@ class Attention(nn.Module):
         model_parallel_size = fs_init.get_model_parallel_world_size()
         self.n_local_heads = args.n_heads // model_parallel_size
         self.n_local_kv_heads = self.n_kv_heads // model_parallel_size
-        self.n_rep = self.n_local_heads // self.n_local_kv_heads
+        self.n_rep = self.n_local_heads // self.n_local_kv_heads  # GQA
         self.head_dim = args.dim // args.n_heads
 
+        # kimi: gather_output=False 表示 ColumnParallelLinear 层在前向计算后不会自动收集各个设备上的输出。
+        # kimi: 通过减少通信需求，gather_output=False 有助于提高模型并行计算的效率。
+        # gpt: wq 使用 ColumnParallelLinear，因为它需要并行生成多个头的 Q、K、V，切分列（输出头）可以有效分摊计算负担。
         self.wq = ColumnParallelLinear(
             args.dim,
             args.n_heads * self.head_dim,
@@ -225,6 +230,9 @@ class Attention(nn.Module):
             gather_output=False,
             init_method=lambda x: x,
         )
+        # kimi: 当 input_is_parallel=True 时，它告诉 RowParallelLinear 层，输入张量 x 已经按照模型并行的策略在多个设备上分布。这意味着每个设备上只有输入张量的一部分，且这些部分是并行处理的。
+        # kimi: 在这种情况下，RowParallelLinear 层会期望输入张量在第一维（通常是特征维）已经被切分，每个设备上只有一部分数据。它会在各自的设备上独立地应用线性变换。
+        # gpt: wo 使用 RowParallelLinear，因为它负责将多头注意力的输出合并回原始维度，切分输入的行可以让 GPU 并行处理多头输出的不同部分。
         self.wo = RowParallelLinear(
             args.n_heads * self.head_dim,
             args.dim,
@@ -271,14 +279,19 @@ class Attention(nn.Module):
 
         """
         bsz, seqlen, _ = x.shape
+
+        # kimi: 线性变换（self.wq(x) 等）是全局定义的，但计算在多个设备上并行执行。
         xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
 
+        # kimi: 张量重塑（view 操作）是在每个设备上独立进行的，每个设备处理其分配到的数据。
         xq = xq.view(bsz, seqlen, self.n_local_heads, self.head_dim)
         xk = xk.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
         xv = xv.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
 
         xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
 
+        # kimi: 这两行代码将缓存的键和值张量转移到与查询张量 xq 相同的设备（通常是 GPU）。
+        # kimi: 这样做是为了确保所有的张量都在同一个设备上，从而避免在计算过程中出现设备不匹配的错误。
         self.cache_k = self.cache_k.to(xq)
         self.cache_v = self.cache_v.to(xq)
 
@@ -298,8 +311,11 @@ class Attention(nn.Module):
         scores = torch.matmul(xq, keys.transpose(2, 3)) / math.sqrt(self.head_dim)
         if mask is not None:
             scores = scores + mask  # (bs, n_local_heads, seqlen, cache_len + seqlen)
+        # kimi: softmax 需要在浮点数上执行以保证数值稳定性。
+        # kimi: 这种类型转换确保了后续操作中所有张量的数据类型一致，避免了潜在的类型不匹配问题。
         scores = F.softmax(scores.float(), dim=-1).type_as(xq)
         output = torch.matmul(scores, values)  # (bs, n_local_heads, seqlen, head_dim)
+        # kimi: contiguous() 确保张量在内存中是连续的，这对于后续的 view 操作是必要的。
         output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
         return self.wo(output)
 
@@ -371,7 +387,7 @@ class TransformerBlock(nn.Module):
         super().__init__()
         self.n_heads = args.n_heads
         self.dim = args.dim
-        self.head_dim = args.dim // args.n_heads
+        self.head_dim = args.dim // args.n_heads  # 128
         self.attention = Attention(args)
         self.feed_forward = FeedForward(
             dim=args.dim,
@@ -430,6 +446,10 @@ class Transformer(nn.Module):
 
         """
         super().__init__()
+        # llama-2-7b-chat/params.json
+        # {"dim": 4096, "multiple_of": 256, "n_heads": 32, "n_layers": 32, "norm_eps": 1e-06, "vocab_size": -1}
+        # llama-2-13b-chat/params.json
+        # {"dim": 5120, "multiple_of": 256, "n_heads": 40, "n_layers": 40, "norm_eps": 1e-05, "vocab_size": -1}
         self.params = params
         self.vocab_size = params.vocab_size
         self.n_layers = params.n_layers

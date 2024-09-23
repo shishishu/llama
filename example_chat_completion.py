@@ -6,6 +6,7 @@ from typing import List, Optional
 import fire
 
 from llama import Llama, Dialog
+import time
 
 
 def main(
@@ -38,6 +39,7 @@ def main(
         max_seq_len=max_seq_len,
         max_batch_size=max_batch_size,
     )
+    time.sleep(30)
 
     dialogs: List[Dialog] = [
         [{"role": "user", "content": "what is the recipe of mayonnaise?"}],
