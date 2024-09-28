@@ -47,7 +47,7 @@ class RMSNorm(torch.nn.Module):
         """
         super().__init__()
         self.eps = eps
-        self.weight = nn.Parameter(torch.ones(dim))
+        self.weight = nn.Parameter(torch.ones(dim))  # initial 1.0
 
     def _norm(self, x):
         """
@@ -165,13 +165,13 @@ def apply_rotary_emb(
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
     # TODO: GQA, how to repeat?
     """torch.repeat_interleave(x, dim=2, repeats=n_rep)"""
-    bs, slen, n_kv_heads, head_dim = x.shape
+    bs, slen, n_kv_heads, head_dim = x.shape                       # [2, 3, 4, 5]
     if n_rep == 1:
         return x
     return (
-        x[:, :, :, None, :]
-        .expand(bs, slen, n_kv_heads, n_rep, head_dim)
-        .reshape(bs, slen, n_kv_heads * n_rep, head_dim)
+        x[:, :, :, None, :]                                        # [2, 3, 4, 1, 5]
+        .expand(bs, slen, n_kv_heads, n_rep, head_dim)             # [2, 3, 4, 2, 5]
+        .reshape(bs, slen, n_kv_heads * n_rep, head_dim)           # [2, 3, 8, 5]
     )
 
 
@@ -348,11 +348,13 @@ class FeedForward(nn.Module):
         # custom dim factor multiplier
         if ffn_dim_multiplier is not None:
             hidden_dim = int(ffn_dim_multiplier * hidden_dim)
+        # gpt: 设置 multiple_of 的主要原因是为了优化计算性能，如提高内存对齐效率、硬件加速器的向量化操作、提高矩阵乘法的并行计算效率、 减少填充（Padding）的开销等。
         hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
 
         self.w1 = ColumnParallelLinear(
             dim, hidden_dim, bias=False, gather_output=False, init_method=lambda x: x
         )
+        # gpt: RowParallelLinear 的计算过程包括将输入数据行分发到多个 GPU 进行局部计算，然后通过归约步骤将这些局部输出整合成最终结果。
         self.w2 = RowParallelLinear(
             hidden_dim, dim, bias=False, input_is_parallel=True, init_method=lambda x: x
         )
