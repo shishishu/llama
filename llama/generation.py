@@ -165,6 +165,7 @@ class Llama:
         assert max_prompt_len <= params.max_seq_len
         total_len = min(params.max_seq_len, max_gen_len + max_prompt_len)
 
+        # kimi: 通过填充 pad_id，确保了所有序列长度一致，并且可以通过 tokens 张量在模型中传递。
         pad_id = self.tokenizer.pad_id
         tokens = torch.full((bsz, total_len), pad_id, dtype=torch.long, device="cuda")
         for k, t in enumerate(prompt_tokens):
@@ -175,6 +176,9 @@ class Llama:
         prev_pos = 0
         eos_reached = torch.tensor([False] * bsz, device="cuda")
         input_text_mask = tokens != pad_id
+
+        # kimi: 允许模型在处理完整的预填充序列时，能够计算出每个 token 的概率，而不需要考虑任何生成部分。
+        # kimi: 对于每个位置，计算选定对数概率与目标 token 的 one-hot 编码向量之间的交叉熵。
         if min_prompt_len == total_len:
             logits = self.model.forward(tokens, prev_pos)
             token_logprobs = -F.cross_entropy(
@@ -184,10 +188,13 @@ class Llama:
                 ignore_index=pad_id,
             )
 
+        # TODO: 如果prompt_len分布差异较大，是否会影响prefill效率(min_prompt_len)？
         for cur_pos in range(min_prompt_len, total_len):
+            # [bsz, seqlen, vocab_size]
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
             if temperature > 0:
-                probs = torch.softmax(logits[:, -1] / temperature, dim=-1)
+                # TODO
+                probs = torch.softmax(logits[:, -1] / temperature, dim=-1)  # [bsz, vocab_size]
                 next_token = sample_top_p(probs, top_p)
             else:
                 next_token = torch.argmax(logits[:, -1], dim=-1)
@@ -322,6 +329,8 @@ class Llama:
             unsafe_requests.append(
                 any([tag in msg["content"] for tag in SPECIAL_TAGS for msg in dialog])
             )
+            # kimi: 如果对话的第一个消息是 system 角色，这段代码会将系统消息与第二个消息（通常是用户消息）合并。
+            # kimi: B_SYS 和 E_SYS 是用于标记系统消息开始和结束的标记。
             if dialog[0]["role"] == "system":
                 dialog = [
                     {
@@ -352,6 +361,9 @@ class Llama:
                 ],
                 [],
             )
+            # kimi: 确保了最后一个用户消息被正确编码并添加到 dialog_tokens 中。
+            # kimi: bos=True 确保每个消息都被模型视为新句子的开始，有助于处理句子边界。
+            # kimi: eos=False 保持对话的开放性，为可能的后续交互留下空间。
             assert (
                 dialog[-1]["role"] == "user"
             ), f"Last message must be from user, got {dialog[-1]['role']}"

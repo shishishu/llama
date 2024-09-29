@@ -495,11 +495,22 @@ class Transformer(nn.Module):
 
         mask = None
         if seqlen > 1:
+            # TODO
             mask = torch.full(
                 (seqlen, seqlen), float("-inf"), device=tokens.device
             )
+            # tensor([[-inf, -inf, -inf, -inf, -inf],
+            #         [-inf, -inf, -inf, -inf, -inf],
+            #         [-inf, -inf, -inf, -inf, -inf],
+            #         [-inf, -inf, -inf, -inf, -inf],
+            #         [-inf, -inf, -inf, -inf, -inf]])
 
             mask = torch.triu(mask, diagonal=1)
+            # tensor([[0., -inf, -inf, -inf, -inf],
+            #         [0., 0., -inf, -inf, -inf],
+            #         [0., 0., 0., -inf, -inf],
+            #         [0., 0., 0., 0., -inf],
+            #         [0., 0., 0., 0., 0.]])
 
             # When performing key-value caching, we compute the attention scores
             # only for the new sequence. Thus, the matrix of scores is of size
