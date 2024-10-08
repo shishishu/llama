@@ -1,0 +1,138 @@
+Layer Name: Transformer - Parameters: 6738415616
+  Child Layer: tok_embeddings - Layer Type: ParallelEmbedding
+    Layer Name: ParallelEmbedding - Parameters: 131072000
+      Parameter Shapes: [torch.Size([32000, 4096])]
+  Child Layer: layers - Layer Type: ModuleList
+    Layer Name: ModuleList - Parameters: 6476267520
+      Child Layer: 0 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+          Child Layer: attention - Layer Type: Attention
+            Layer Name: Attention - Parameters: 67108864
+              Child Layer: wq - Layer Type: ColumnParallelLinear
+                Layer Name: ColumnParallelLinear - Parameters: 16777216
+                  Parameter Shapes: [torch.Size([4096, 4096])]
+              Child Layer: wk - Layer Type: ColumnParallelLinear
+                Layer Name: ColumnParallelLinear - Parameters: 16777216
+                  Parameter Shapes: [torch.Size([4096, 4096])]
+              Child Layer: wv - Layer Type: ColumnParallelLinear
+                Layer Name: ColumnParallelLinear - Parameters: 16777216
+                  Parameter Shapes: [torch.Size([4096, 4096])]
+              Child Layer: wo - Layer Type: RowParallelLinear
+                Layer Name: RowParallelLinear - Parameters: 16777216
+                  Parameter Shapes: [torch.Size([4096, 4096])]
+          Child Layer: feed_forward - Layer Type: FeedForward
+            Layer Name: FeedForward - Parameters: 135266304
+              Child Layer: w1 - Layer Type: ColumnParallelLinear
+                Layer Name: ColumnParallelLinear - Parameters: 45088768
+                  Parameter Shapes: [torch.Size([11008, 4096])]
+              Child Layer: w2 - Layer Type: RowParallelLinear
+                Layer Name: RowParallelLinear - Parameters: 45088768
+                  Parameter Shapes: [torch.Size([4096, 11008])]
+              Child Layer: w3 - Layer Type: ColumnParallelLinear
+                Layer Name: ColumnParallelLinear - Parameters: 45088768
+                  Parameter Shapes: [torch.Size([11008, 4096])]
+          Child Layer: attention_norm - Layer Type: RMSNorm
+            Layer Name: RMSNorm - Parameters: 4096
+              Parameter Shapes: [torch.Size([4096])]
+          Child Layer: ffn_norm - Layer Type: RMSNorm
+            Layer Name: RMSNorm - Parameters: 4096
+              Parameter Shapes: [torch.Size([4096])]
+      Child Layer: 1 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680605376
+      Child Layer: 2 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680604704
+      Child Layer: 3 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680603936
+      Child Layer: 4 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680603264
+      Child Layer: 5 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680565664
+      Child Layer: 6 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680564896
+      Child Layer: 7 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680564224
+      Child Layer: 8 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680563552
+      Child Layer: 9 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680562784
+      Child Layer: 10 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680562112
+      Child Layer: 11 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680524512
+      Child Layer: 12 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680523744
+      Child Layer: 13 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680523072
+      Child Layer: 14 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680522400
+      Child Layer: 15 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680521632
+      Child Layer: 16 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680520960
+      Child Layer: 17 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680479264
+      Child Layer: 18 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680478496
+      Child Layer: 19 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680477824
+      Child Layer: 20 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680477152
+      Child Layer: 21 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680476384
+      Child Layer: 22 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290680475760
+      Child Layer: 23 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750385504
+      Child Layer: 24 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750384736
+      Child Layer: 25 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750384064
+      Child Layer: 26 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750383392
+      Child Layer: 27 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750382624
+      Child Layer: 28 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750345024
+      Child Layer: 29 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750344352
+      Child Layer: 30 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750343584
+      Child Layer: 31 - Layer Type: TransformerBlock
+        Layer Name: TransformerBlock - Parameters: 202383360
+        Child Layer ID: 140290750342912
+  Child Layer: norm - Layer Type: RMSNorm
+    Layer Name: RMSNorm - Parameters: 4096
+      Parameter Shapes: [torch.Size([4096])]
+  Child Layer: output - Layer Type: ColumnParallelLinear
+    Layer Name: ColumnParallelLinear - Parameters: 131072000
+      Parameter Shapes: [torch.Size([32000, 4096])]

@@ -38,6 +38,44 @@ class ChatPrediction(TypedDict, total=False):
     tokens: List[str]  # not required
     logprobs: List[float]  # not required
 
+printed_blocks = set()  # 用于记录已经打印的 TransformerBlock
+first_transformer_block_printed = False  # 用于标记是否已打印第一个 TransformerBlock
+
+
+def print_model_structure(model, indent=0):
+    global first_transformer_block_printed
+    layer_name = model.__class__.__name__
+
+    # 打印其他层名称和参数量
+    param_count = sum(p.numel() for p in model.parameters())  # 计算参数总量
+    print(" " * indent + f"Layer Name: {layer_name} - Parameters: {param_count}")
+
+    # 打印参数形状
+    if layer_name in ['ParallelEmbedding', 'ColumnParallelLinear', 'RowParallelLinear', 'RMSNorm']:
+        param_shapes = [p.shape for p in model.parameters()]
+        shape_info = ", ".join([f"{shape}" for shape in param_shapes])
+        if param_shapes:
+            print(" " * indent + f"  Parameter Shapes: [{shape_info}]")
+
+    # 处理 TransformerBlock
+    if layer_name == "TransformerBlock":
+        if not first_transformer_block_printed:
+            printed_blocks.add(model)  # 记录已打印的实例
+            first_transformer_block_printed = True  # 标记为已打印
+
+            # 打印子结构
+            for name, layer in model.named_children():
+                print(" " * (indent + 2) + f"Child Layer: {name} - Layer Type: {layer.__class__.__name__}")
+                print_model_structure(layer, indent + 4)
+        else:
+            print(" " * indent + f"Child Layer ID: {id(model)}")  # 仅打印 ID
+        return
+
+    # 遍历子层并打印
+    for name, layer in model.named_children():
+        print(" " * (indent + 2) + f"Child Layer: {name} - Layer Type: {layer.__class__.__name__}")
+        print_model_structure(layer, indent + 4)
+
 
 Dialog = List[Message]
 
@@ -126,6 +164,8 @@ class Llama:
     def __init__(self, model: Transformer, tokenizer: Tokenizer):
         self.model = model
         self.tokenizer = tokenizer
+        # print model structure
+        print_model_structure(self.model)
 
     @torch.inference_mode()
     def generate(
@@ -189,6 +229,7 @@ class Llama:
             )
 
         # TODO: 如果prompt_len分布差异较大，是否会影响prefill效率(min_prompt_len)？
+        start_time = time.time()
         for cur_pos in range(min_prompt_len, total_len):
             # [bsz, seqlen, vocab_size]
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
@@ -215,6 +256,11 @@ class Llama:
             eos_reached |= (~input_text_mask[:, cur_pos]) & (
                 next_token == self.tokenizer.eos_id
             )
+
+            curr_time = time.time()
+            print(f"[Time Logger] model forward: {prev_pos}, {cur_pos} in {curr_time - start_time:.4f} seconds")
+            start_time = curr_time
+
             prev_pos = cur_pos
             if all(eos_reached):
                 break

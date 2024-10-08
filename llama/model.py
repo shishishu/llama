@@ -15,6 +15,14 @@ from fairscale.nn.model_parallel.layers import (
 )
 from torch import nn
 
+def log_shapes(func):
+    def wrapper(self, *args, **kwargs):
+        output = func(self, *args, **kwargs)
+        print(f"Layer: {self.__class__.__name__}")
+        print(f"  Input shape: {args[0].shape}")  # 假设第一个参数是输入
+        print(f"  Output shape: {output.shape}")
+        return output
+    return wrapper
 
 @dataclass
 class ModelArgs:
