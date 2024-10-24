@@ -502,8 +502,12 @@ class Transformer(nn.Module):
         freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
 
         mask = None
+        # prefill (GEMM)
+        # gpt: 当seqlen=1时，主要对应的是在线解码（增量推理）或序列生成的起始阶段，此时不需要生成完整的注意力掩码矩阵，因为：
+        # gpt: 1. 在线解码时只处理一个新token，而之前的上下文信息已经被缓存。
+        # gpt: 2. 序列起始阶段只有一个token，不涉及未来token的屏蔽问题。
         if seqlen > 1:
-            # TODO
+            # TODO: when it meets seqlen > 1 & start_pos > 1 (kv cache)?
             mask = torch.full(
                 (seqlen, seqlen), float("-inf"), device=tokens.device
             )

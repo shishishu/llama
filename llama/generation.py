@@ -196,6 +196,8 @@ class Llama:
             If logprobs is True, token log probabilities are computed for each generated token.
 
         """
+        # ref: https://lumichuan.com/post/12#top_k
+        
         params = self.model.params
         bsz = len(prompt_tokens)
         assert bsz <= params.max_batch_size, (bsz, params.max_batch_size)
@@ -220,10 +222,12 @@ class Llama:
         # kimi: 允许模型在处理完整的预填充序列时，能够计算出每个 token 的概率，而不需要考虑任何生成部分。
         # kimi: 对于每个位置，计算选定对数概率与目标 token 的 one-hot 编码向量之间的交叉熵。
         if min_prompt_len == total_len:
-            logits = self.model.forward(tokens, prev_pos)
+            logits = self.model.forward(tokens, prev_pos)  # [bsz, seqlen, vocab_size]
+            # gpt: PyTorch的cross_entropy函数自动处理了softmax和取target对应类别的log概率的过程，不需要将tokens转换为one-hot。
+            # https://pytorch.org/docs/stable/generated/torch.nn.functional.cross_entropy.html
             token_logprobs = -F.cross_entropy(
-                input=logits.transpose(1, 2),
-                target=tokens,
+                input=logits.transpose(1, 2),  # [bsz, vocab_size, seqlen]
+                target=tokens,  # [bsz, seqlen]
                 reduction="none",
                 ignore_index=pad_id,
             )
@@ -231,17 +235,20 @@ class Llama:
         # TODO: 如果prompt_len分布差异较大，是否会影响prefill效率(min_prompt_len)？
         start_time = time.time()
         for cur_pos in range(min_prompt_len, total_len):
-            # [bsz, seqlen, vocab_size]
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
             if temperature > 0:
-                # TODO
+                # kimi: 较低的 temperature（小于 1）会导致生成的文本更加确定性和一致性，但可能缺乏多样性。
+                # kimi: 较高的 temperature（大于 1）会增加生成文本的随机性和多样性，但可能牺牲一致性和相关性。
                 probs = torch.softmax(logits[:, -1] / temperature, dim=-1)  # [bsz, vocab_size]
+                # gpt: 在实际使用中，选择合适的p取决于生成任务的需求。
+                # gpt: 如果需要更多创造性和灵活性，可以选择较大的top_p，而如果需要输出较为确定和可控，可以选择较小的top_p。
                 next_token = sample_top_p(probs, top_p)
             else:
                 next_token = torch.argmax(logits[:, -1], dim=-1)
 
-            next_token = next_token.reshape(-1)
+            next_token = next_token.reshape(-1)  # [bsz]
             # only replace token if prompt has already been generated
+            # gpt: 如果input_text_mask为True，则保持tokens中的原始token，否则替换为新生成的next_token，确保输入文本不被覆盖。
             next_token = torch.where(
                 input_text_mask[:, cur_pos], tokens[:, cur_pos], next_token
             )
@@ -249,10 +256,11 @@ class Llama:
             if logprobs:
                 token_logprobs[:, prev_pos + 1 : cur_pos + 1] = -F.cross_entropy(
                     input=logits.transpose(1, 2),
-                    target=tokens[:, prev_pos + 1 : cur_pos + 1],
+                    target=tokens[:, prev_pos + 1 : cur_pos + 1],  # next token
                     reduction="none",
                     ignore_index=pad_id,
                 )
+            # gpt: 如果生成的next_token是eos_id，并且不在input_text_mask中，标记为结束。
             eos_reached |= (~input_text_mask[:, cur_pos]) & (
                 next_token == self.tokenizer.eos_id
             )
@@ -262,6 +270,7 @@ class Llama:
             start_time = curr_time
 
             prev_pos = cur_pos
+            # gpt: 当所有批次都生成了eos_id时，跳出循环。
             if all(eos_reached):
                 break
 
@@ -472,9 +481,12 @@ def sample_top_p(probs, p):
     """
     probs_sort, probs_idx = torch.sort(probs, dim=-1, descending=True)
     probs_sum = torch.cumsum(probs_sort, dim=-1)
+    # gpt: 目的是通过计算“去掉当前token后的累积概率”来判断剩余概率是否超过阈值p。
+    # gpt: 当累积概率超过p时，后面的token被屏蔽，只有前面累积的token会参与最终的采样。
     mask = probs_sum - probs_sort > p
     probs_sort[mask] = 0.0
     probs_sort.div_(probs_sort.sum(dim=-1, keepdim=True))
+    # gpt: 实现随机采样的常用工具，尤其是在语言模型生成时，比如在预测下一个词的过程中，从模型的输出概率分布中根据概率进行随机采样。
     next_token = torch.multinomial(probs_sort, num_samples=1)
     next_token = torch.gather(probs_idx, -1, next_token)
     return next_token
